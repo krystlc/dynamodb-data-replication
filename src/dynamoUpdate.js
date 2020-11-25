@@ -14,8 +14,8 @@ var ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' });
 
 
 module.exports.handler = (event, context) => {
-    const yesturday = new Date();
-    yesturday.setDate(yesturday.getDate() - 1);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
     var filter = "";
     var URL = 'https://jsoneditoronline.herokuapp.com/v1/docs/7dcaa7963ee8408d9f2be6e472319681/data'; //Your API url here
     // URL = "https://api.mlsgrid.com/PropertyResi";
@@ -24,7 +24,7 @@ module.exports.handler = (event, context) => {
     if (scope === 'ALL')
         filter = "MlgCanView eq true";
     else if (scope === "MODIFICATION")
-        filter = `ModificationTimestamp gt ${yesturday.toISOString()}`;
+        filter = `ModificationTimestamp gt ${yesterday.toISOString()}`;
     URL = `${URL}?filter=${encodeURI(filter)}`;
     URL = event['url'] || URL;
 
