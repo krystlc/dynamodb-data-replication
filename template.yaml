@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  sam-app
+  dynamodb-data-replication
 
-  Sample SAM Template for sam-app
+  A Lambda script to replicate a database, backing it up in a DynamoDB table.
   
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -14,7 +14,7 @@ Resources:
   HelloWorldFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: hello-world/dist
+      CodeUri: hello-world/
       Handler: app.lambdaHandler
       Runtime: nodejs12.x
       Events:
