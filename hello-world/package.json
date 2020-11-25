@@ -1,7 +1,7 @@
 {
-  "name": "hello_world",
+  "name": "dynamodb-data-replication",
   "version": "1.0.0",
-  "description": "hello world sample for NodeJS",
+  "description": "A Lambda script to replicate a database, backing it up in a DynamoDB table",
   "main": "app.js",
   "repository": "https://github.com/awslabs/aws-sam-cli/tree/develop/samcli/local/init/templates/cookiecutter-aws-sam-hello-nodejs",
   "author": "SAM CLI",
@@ -10,10 +10,15 @@
     "axios": "^0.18.0"
   },
   "scripts": {
-    "test": "mocha tests/unit/"
+    "test": "mocha tests/unit/",
+    "tsc": "tsc"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.64",
+    "@types/node": "^14.14.10",
+    "aws-sdk": "^2.799.0",
     "chai": "^4.2.0",
-    "mocha": "^6.1.4"
+    "mocha": "^6.1.4",
+    "typescript": "^4.1.2"
   }
 }
