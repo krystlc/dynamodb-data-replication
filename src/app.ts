@@ -1,18 +1,17 @@
-import AWS from 'aws-sdk';
-import { BatchWriteItemInput } from "aws-sdk/clients/dynamodb";
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
-
-import axios, { AxiosResponse } from 'axios';
-
+import AWS from 'aws-sdk'
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda"
+import { Scope, County } from './types/Enums'
 import { MLSDataResponseInterface, MLSDataValueInterface } from './types/MLSData'
+import { AxiosRequestConfig, AxiosResponse } from "axios"
 
-const TABLE_NAME = 'geo_test_8';   //Your table name here
-const TABLE_REGION = 'ap-south-1';   //Your table name here
-const TABLE_UNIQUE_KEY_FIELD = 'id';
-const sc = "ALL";
+import $axios from './utils/axios.utils'
+import ddb from './utils/ddb.utils'
 
-AWS.config.update({ region: TABLE_REGION });
-var ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' });
+// const COUNTIES = [
+//   County.Hillsborough,
+//   County.Pasco,
+//   County.Pinellas
+// ]
 
 /**
  *
@@ -26,190 +25,84 @@ var ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' });
  * @returns {Object} object - API Gateway Lambda Proxy Output Format
  * 
  */
-exports.lambdaHandler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
+export const lambdaHandler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
+  const scope = Number(event.queryStringParameters?.scope) ?? Scope.Upsert
   try {
-    // const ret = await axios(url);
-    // response = {
-    //   'statusCode': 200,
-    //   'body': JSON.stringify({
-    //     message: 'hello world!!!',
-    //     // location: ret.data.trim()
-    //   })
-    // }
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    var filter: string = "";
-    var URL = 'https://jsoneditoronline.herokuapp.com/v1/docs/7dcaa7963ee8408d9f2be6e472319681/data'; //Your API url here
-    // URL = "https://api.mlsgrid.com/PropertyResi";
-    const scope: string = event.queryStringParameters?.scope ?? sc;
-
-    if (scope === 'ALL')
-      filter = "MlgCanView eq true";
-    else if (scope === "MODIFICATION")
-      filter = `ModificationTimestamp gt ${yesterday.toISOString()}`;
-    URL = `${URL}?filter=${encodeURI(filter)}`;
-    URL = event.queryStringParameters?.url || URL;
-
-    const METHOD = "GET";     //Your API method here
-    var continiue = true;
-    return new Promise(async (resolve, reject) => {
-      while (continiue) {
-        console.log("in loop");
-        const requestOptions = {
-          url: URL,
-          method: METHOD,
-          // headers:''
-        };
-        console.log(requestOptions);
-
-        await axios(requestOptions)
-          .then(async (result: AxiosResponse<MLSDataResponseInterface>) => {
-            const dynamoUpdateData = result.data.value;
-            const nextUrl = result.data['@odata.nextLink'];
-            console.log("nextUrl", nextUrl);
-            if (nextUrl && nextUrl.length > 0) {
-              URL = nextUrl;
-              continiue = true;
-            }
-            else {
-              continiue = false;
-            }
-            var res;
-            if (scope === 'ALL')
-              res = insertData(dynamoUpdateData);
-            else if (scope === "MODIFICATION")
-              res = updateData(dynamoUpdateData);
-
-            /*
-            await can be used if you want to do each set of operaition sequentially
-            By any chance, if the execution time is near to timeout, then lambda can trigger another version of
-            self automatically with url an scope as a parameter. this can be achived if await is used.
-            */
-            // await res.then(resp => {                   
-            (res as Promise<any>).then(resp => {
-              console.log(resp);
-              if (context.getRemainingTimeInMillis() < 10000 && nextUrl && nextUrl.length > 0) {
-                continiue = false;
-                invokeAnotherVersion(nextUrl, scope, context.invokedFunctionArn)
-              }
-            })
-          })
-          .catch(error => {
-            console.log(error);
-            reject("Error in fetching extarnal data.");
-            continiue = false;
-          });
-      }
-      console.log("completed");
-
-    });
+    const { url, options } = buildUrl(event, scope)
+    const response: AxiosResponse<MLSDataResponseInterface> = await $axios.get(url, options)
+    if (response?.data) {
+      // const value = response.data?.value
+      // const nextLink = response.data?.["@odata.nextLink"]
+      // const process = await Promise.all([
+      //   handleResponseData(value, scope),
+      //   invokeAnotherVersion(nextLink, scope, context.invokedFunctionArn)
+      // ])
+      const process = await Promise.all([
+        handleResponseData((response.data as any), scope)
+      ])
+      return buildResult(200, process)
+    }
+    return buildResult(204, response)
   } catch (err) {
-    console.log(err);
-    return err;
+    return buildResult(400, err)
   }
-};
-
-function formateDataForDynamo(rawData: MLSDataValueInterface) {
-  return AWS.DynamoDB.Converter.input(rawData);
 }
 
-function updateData(data: MLSDataValueInterface[]) {
-  console.log("updating...");
-  return new Promise((resolve, reject) => {
-    var promises: Promise<any>[] = [];
-    data.forEach(async row => {
-      var params: any = {
-        TableName: TABLE_NAME,
-        Item: formateDataForDynamo({
-          [TABLE_UNIQUE_KEY_FIELD]: row.ListingId.toString(),  // use your own key value or remove it if api result have the key attribute already.
-          ...row
-        }).M
-      };
-      promises.push(new Promise((res, rej) => {
-        ddb.putItem(params, function (err, data) {
-          if (err) {
-            console.log("Error updating data", err);
-            rej(false);
-          } else {
-            console.log("Data updated", data);
-            res(true);
-          }
-        });
-      }));
-    });
-    Promise.all(promises)
-      .then(result => {
-        console.log(result);
-        if (result.includes(false))
-          console.log("handle error in updating data");
-        resolve("Done")
-      })
-      .catch(err => {
-        console.log("handle error in updating data");
-        reject(err);
-      })
-  });
+const buildResult = (statusCode: number, body: any): APIGatewayProxyResult => ({
+  statusCode,
+  body: JSON.stringify(body)
+})
+
+const buildUrl = (event: APIGatewayProxyEvent, scope: Scope): { url: string, options?: any } => {
+  if (event?.queryStringParameters?.url) {
+    return {
+      url: event.queryStringParameters.url
+    }
+  }
+  // const yesterday = new Date()
+  // yesterday.setDate(yesterday.getDate() - 1)
+  // const filter = scope === Scope.Upsert
+  //   ? "MlgCanView eq true"
+  //   : `ModificationTimestamp gt ${yesterday.toISOString()}`
+  // const apiMethod = 'PropertyResi'
+  // const options: AxiosRequestConfig = {}
+  const apiMethod = 'breweries'
+  const options: AxiosRequestConfig = {
+    params: {
+      per_page: 50
+    }
+  }
+  return {
+    url: apiMethod,
+    options,
+  }
 }
 
-function insertData(DynamoData: MLSDataValueInterface[]) {
-  console.log("inserting...");
-
-  return new Promise((resolve, reject) => {
-    let params: any = []
-    const promises: Promise<any>[] = [];
-    DynamoData.forEach(async (row, index) => {
-      params.push({
-        PutRequest: {
-          Item: formateDataForDynamo({
-            [TABLE_UNIQUE_KEY_FIELD]: row['@odata.id'].toString(),  // use your own key value or remove it if api result have the key attribute already.
-            ...row,
-          }).M
-        }
-      })
-      if (params.length == 25 || index === DynamoData.length - 1) {
-        console.log(params.length);
-        promises.push(new Promise((res, rej) => {
-          var processItemsCallback = function (err: any, data: any) {
-            if (err) {
-              console.log("Error", err);
-              rej("Error in updating data in dynamo db.");
-            } else {
-              var params = {};
-              if (data.UnprocessedItems.length > 0) {
-                (params as any).RequestItems = data.UnprocessedItems;
-                ddb.batchWriteItem((params as BatchWriteItemInput), processItemsCallback);
-              } else {
-                res(true);
-              }
-            }
-          };
-          ddb.batchWriteItem({ RequestItems: { [TABLE_NAME]: params } }, processItemsCallback);
-        }));
-
-        params = [];
-      }
-    })
-    Promise.all(promises)
-      .then(result => {
-        console.log(result);
-        resolve("Done")
-      })
-      .catch(err => {
-        reject(err);
-      })
-  });
+const handleResponseData = async (properties: MLSDataValueInterface[], scope: Scope): Promise<any> => {
+  if (properties) {
+    const action = scope === Scope.Delete ? 'delete' : 'upsert'
+    // const filteredProperties = properties.filter(property => COUNTIES.includes(property.CountyOrParish))
+    const filteredProperties = properties.filter(property => (property as any).brewery_type === 'micro')
+    const response = await ddb.insertData(filteredProperties)
+    return response
+  }
+  return null
 }
 
-function invokeAnotherVersion(url: string, scope: string, arn: string) {
-  var lambda = new AWS.Lambda();
-  var params = {
-    FunctionName: arn,
-    InvocationType: "Event",
-    Payload: JSON.stringify({ url, scope }),
-    Qualifier: "1"
-  };
-  lambda.invoke(params, function (err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
-    else console.log(data);           // successful response
-  });
+const invokeAnotherVersion = async (url: string | undefined, scope: Scope, FunctionName: string): Promise<any> => {
+  if (url) {
+    const lambda = new AWS.Lambda()
+    const params: AWS.Lambda.InvocationRequest = {
+      FunctionName,
+      InvocationType: "Event",
+      Payload: JSON.stringify({ url, scope }),
+      Qualifier: "1"
+    }
+    const response = await lambda.invoke(params, function (err, data) {
+      if (err) console.error(err, err.stack) // an error occurred
+      else console.log(data)           // successful response
+    }).promise()
+    return response
+  }
+  return null
 }
