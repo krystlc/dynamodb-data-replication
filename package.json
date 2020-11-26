@@ -11,7 +11,9 @@
   },
   "scripts": {
     "test": "mocha tests/unit/",
-    "tsc": "tsc"
+    "tsc": "tsc",
+    "pretsc": "rm -rf ./dist",
+    "posttsc": "cp package*.json ./dist"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.64",

@@ -4,7 +4,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda
 
 import axios, { AxiosResponse } from 'axios';
 
-import { MLSDataResponseInterface, MLSDataValueInterface } from './interfaces'
+import { MLSDataResponseInterface, MLSDataValueInterface } from './types/MLSData'
 
 const TABLE_NAME = 'geo_test_8';   //Your table name here
 const TABLE_REGION = 'ap-south-1';   //Your table name here
