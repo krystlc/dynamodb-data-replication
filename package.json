@@ -13,7 +13,9 @@
     "test": "mocha tests/unit/",
     "tsc": "tsc",
     "pretsc": "rm -rf ./dist",
-    "posttsc": "cp package*.json ./dist"
+    "posttsc": "cp package*.json ./dist",
+    "sam-build": "sam build",
+    "dev": "tsc -w"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.64",
