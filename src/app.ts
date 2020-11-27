@@ -44,7 +44,7 @@ export const lambdaHandler = async (event: APIGatewayProxyEvent, context: Contex
       //   invokeAnotherVersion(nextLink, scope, context.invokedFunctionArn)
       // ])
       const process = await Promise.all([
-        handleResponseData((response.data as any), scope)
+        handleResponseData(((response.data as any).data), scope)
       ])
       console.log(200, process)
       return buildResult(200, process)
@@ -91,7 +91,7 @@ const handleResponseData = async (properties: MLSDataValueInterface[], scope: Sc
   if (properties) {
     const action = scope === Scope.Delete ? 'delete' : 'upsert'
     // const filteredProperties = properties.filter(property => COUNTIES.includes(property.CountyOrParish))
-    const filteredProperties = properties.filter(property => (property as any).brewery_type === 'micro')
+    const filteredProperties = properties.filter(property => (property as any).attributes.status === 'finished')
     const response = scope === Scope.Upsert
       ? await insertProperties(filteredProperties)
       : await deleteProperties(filteredProperties)

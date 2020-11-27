@@ -17,8 +17,8 @@
     "posttsc": "cp package*.json ./dist",
     "sam-build": "sam build",
     "sam-local": "sam.cmd local start-api --docker-network lambda-local",
-    "aws-dynamodb-init": "aws dynamodb create-table --table-name beer-test --attribute-definitions AttributeName=id,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 --endpoint-url http://localhost:8000",
-    "aws-dynamodb": "docker run -d -v \"$PWD\":/dynamodb_local_db -p 8000:8000 --network lambda-local --name dynamodb cnadiminti/dynamodb-local"
+    "aws-dynamodb": "docker run --rm -d -v '${PWD}/dynamodb_local_db' -p 8000:8000 --network lambda-local --name dynamodb cnadiminti/dynamodb-local",
+    "postaws-dynamodb": "aws dynamodb create-table --table-name beer-test --attribute-definitions AttributeName=id,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 --endpoint-url http://localhost:8000"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.64",
