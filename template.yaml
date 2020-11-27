@@ -16,7 +16,7 @@ Globals:
         TABLE_NAME: beer-test   # Your table name here
         TABLE_REGION: us-east-1 # Your table region here
         TABLE_UNIQUE_KEY_FIELD: id
-        BASE_URL: https://api.openbrewerydb.org # replace with https://api.mlsgrid.com
+        BASE_URL: https://kitsu.io/api/edge # replace with https://api.mlsgrid.com
         MLS_GRID_ACCESS_TOKEN: # how should i define this value securely?
 
 Resources:

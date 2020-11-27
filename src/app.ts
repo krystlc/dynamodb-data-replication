@@ -75,10 +75,10 @@ const buildUrl = (event: APIGatewayProxyEvent, scope: Scope): { url: string, opt
   //   : `ModificationTimestamp gt ${yesterday.toISOString()}`
   // const apiMethod = 'PropertyResi'
   // const options: AxiosRequestConfig = {}
-  const apiMethod = 'breweries'
+  const apiMethod = 'anime'
   const options: AxiosRequestConfig = {
     params: {
-      per_page: 50
+      'page[limit]': 20
     }
   }
   return {
