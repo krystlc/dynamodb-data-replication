@@ -6,6 +6,9 @@ import { AxiosRequestConfig, AxiosResponse } from "axios"
 
 import $axios from './utils/axios.utils'
 import ddb from './utils/ddb.utils'
+import { BatchWriteItemInput } from 'aws-sdk/clients/dynamodb'
+
+const { TABLE_NAME, TABLE_UNIQUE_KEY_FIELD } = process.env
 
 // const COUNTIES = [
 //   County.Hillsborough,
@@ -26,7 +29,10 @@ import ddb from './utils/ddb.utils'
  * 
  */
 export const lambdaHandler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
-  const scope = Number(event.queryStringParameters?.scope) ?? Scope.Upsert
+  const scope: Scope = event.queryStringParameters?.scope
+    ? Number(event.queryStringParameters.scope)
+    : Scope.Upsert
+  console.log('process scope', Scope[scope])
   try {
     const { url, options } = buildUrl(event, scope)
     const response: AxiosResponse<MLSDataResponseInterface> = await $axios.get(url, options)
@@ -86,7 +92,9 @@ const handleResponseData = async (properties: MLSDataValueInterface[], scope: Sc
     const action = scope === Scope.Delete ? 'delete' : 'upsert'
     // const filteredProperties = properties.filter(property => COUNTIES.includes(property.CountyOrParish))
     const filteredProperties = properties.filter(property => (property as any).brewery_type === 'micro')
-    const response = await ddb.insertData(filteredProperties)
+    const response = scope === Scope.Upsert
+      ? await insertProperties(filteredProperties)
+      : await deleteProperties(filteredProperties)
     return response
   }
   return null
@@ -108,4 +116,119 @@ const invokeAnotherVersion = async (url: string | undefined, scope: Scope, Funct
     return response
   }
   return null
+}
+
+function formatDataForDynamo(rawData: MLSDataValueInterface) {
+  return AWS.DynamoDB.Converter.marshall(rawData)
+}
+
+function insertProperties(DynamoData: MLSDataValueInterface[]): Promise<any> {
+  console.log('begin inserting data')
+  return new Promise((resolve, reject) => {
+    let params: any = []
+    let promises: Promise<any>[] = []
+    DynamoData.forEach(async (row, index) => {
+      const { id, ...property } = row
+      params.push({
+        PutRequest: {
+          Item: formatDataForDynamo({
+            // [(TABLE_UNIQUE_KEY_FIELD as string)]: row['@odata.id'].toString(),  // use your own key value or remove it if api result have the key attribute already.
+            [(TABLE_UNIQUE_KEY_FIELD as string)]: String(id),  // use your own key value or remove it if api result have the key attribute already.
+            ...property,
+          })
+        }
+      })
+      if (params.length == 25 || index === DynamoData.length - 1) {
+        promises.push(new Promise((res, rej) => {
+          const processItemsCallback = function (err: any, data: any) {
+            if (err) {
+              console.error('error updating db \n', err)
+              rej(err)
+            } else {
+              var params = {}
+              if (data.UnprocessedItems.length > 0) {
+                (params as any).RequestItems = data.UnprocessedItems
+                ddb.batchWriteItem((params as any), processItemsCallback)
+              } else {
+                res(true)
+              }
+            }
+          }
+          console.log('processing batch', params)
+          ddb.batchWriteItem({ 
+            RequestItems: { 
+              [(TABLE_NAME as any)]: params
+            } 
+          }, processItemsCallback)
+        }))
+
+        params = []
+      }
+    })
+    Promise.all(promises)
+      .then(result => {
+        resolve({
+          message: `${result.length} batches insterted`
+        })
+      })
+      .catch(err => {
+        reject(err)
+      })
+  })
+}
+
+/**
+ * 
+ * todo: refactor both these functions into one
+ */
+function deleteProperties(DynamoData: MLSDataValueInterface[]): Promise<any> {
+  console.log('begin deleting data')
+  return new Promise((resolve, reject) => {
+    let params: any = []
+    let promises: Promise<any>[] = []
+    DynamoData.forEach(async (row, index) => {
+      params.push({
+        DeleteRequest: {
+          Key: formatDataForDynamo({
+            [(TABLE_UNIQUE_KEY_FIELD as string)]: String(row.id),
+          } as any),
+        }
+      })
+      if (params.length == 25 || index === DynamoData.length - 1) {
+        promises.push(new Promise((res, rej) => {
+          const processItemsCallback = function (err: any, data: any) {
+            if (err) {
+              console.error('error deleting db items \n', err)
+              rej(err)
+            } else {
+              var params = {}
+              if (data.UnprocessedItems.length > 0) {
+                (params as any).RequestItems = data.UnprocessedItems
+                ddb.batchWriteItem((params as BatchWriteItemInput), processItemsCallback)
+              } else {
+                res(true)
+              }
+            }
+          }
+          console.log('processing batch', params)
+          ddb.batchWriteItem({ 
+            RequestItems: { 
+              [(TABLE_NAME as any)]: params
+            } 
+          }, processItemsCallback)
+        }))
+
+        params = []
+      }
+    })
+    Promise.all(promises)
+      .then(result => {
+        resolve({
+          message: `${result.length} batches deleted`
+        })
+      })
+      .catch(err => {
+        reject(err)
+      })
+  })
 }
