@@ -12,6 +12,7 @@ Globals:
     Timeout: 60
     Environment:
       Variables:
+        AWS_REGION: us-east-1
         TABLE_NAME: beer-test   # Your table name here
         TABLE_REGION: us-east-1 # Your table region here
         TABLE_UNIQUE_KEY_FIELD: id

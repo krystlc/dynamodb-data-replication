@@ -1,24 +1,37 @@
-import AWS from 'aws-sdk'
+import AWS, { Endpoint } from 'aws-sdk'
 import { MLSDataValueInterface } from '../types/MLSData'
 
-const { TABLE_NAME, TABLE_REGION, TABLE_UNIQUE_KEY_FIELD } = process.env
+const { TABLE_NAME, TABLE_UNIQUE_KEY_FIELD } = process.env
+const awsRegion = process.env.AWS_REGION || 'us-east-1'
 
-AWS.config.update({ region: TABLE_REGION })
-const ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' })
+AWS.config.update({
+  region: awsRegion,
+})
+// set the end point
+const ddb = new AWS.DynamoDB({
+  apiVersion: '2012-08-10'
+})
+
+if(process.env.AWS_SAM_LOCAL) {
+  ddb.endpoint = new Endpoint('http://dynamodb:8000')
+  console.log('aws sam is local', ddb.config)
+}
 
 function formatDataForDynamo(rawData: MLSDataValueInterface) {
   return AWS.DynamoDB.Converter.input(rawData)
 }
 
 function insertData(DynamoData: MLSDataValueInterface[]): Promise<any> {
+  console.log('start!')
   return new Promise((resolve, reject) => {
     let params: any = []
-    let promises: Promise<any>[] = [];
+    let promises: Promise<any>[] = []
     DynamoData.forEach(async (row, index) => {
       params.push({
         PutRequest: {
           Item: formatDataForDynamo({
             // [(TABLE_UNIQUE_KEY_FIELD as string)]: row['@odata.id'].toString(),  // use your own key value or remove it if api result have the key attribute already.
+            [(TABLE_UNIQUE_KEY_FIELD as string)]: row['id']?.toString(),  // use your own key value or remove it if api result have the key attribute already.
             ...row,
           }).M
         }
@@ -30,29 +43,30 @@ function insertData(DynamoData: MLSDataValueInterface[]): Promise<any> {
               console.error('Error updating db \n', err)
               rej(err)
             } else {
-              var params = {};
+              var params = {}
               if (data.UnprocessedItems.length > 0) {
-                (params as any).RequestItems = data.UnprocessedItems;
-                ddb.batchWriteItem((params as any), processItemsCallback);
+                (params as any).RequestItems = data.UnprocessedItems
+                ddb.batchWriteItem((params as any), processItemsCallback)
               } else {
-                res(true);
+                res(true)
               }
             }
-          };
-          ddb.batchWriteItem({ RequestItems: { [(TABLE_NAME as any)]: params } }, processItemsCallback);
-        }));
+          }
+          console.log('init payload!')
+          ddb.batchWriteItem({ RequestItems: { [(TABLE_NAME as any)]: params } }, processItemsCallback)
+        }))
 
-        params = [];
+        params = []
       }
     })
     Promise.all(promises)
       .then(result => {
-        resolve("Done")
+        resolve('Done')
       })
       .catch(err => {
-        reject(err);
+        reject(err)
       })
-  });
+  })
 }
 
 export default {

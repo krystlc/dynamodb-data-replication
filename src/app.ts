@@ -40,10 +40,13 @@ export const lambdaHandler = async (event: APIGatewayProxyEvent, context: Contex
       const process = await Promise.all([
         handleResponseData((response.data as any), scope)
       ])
+      console.log(200, process)
       return buildResult(200, process)
     }
+    console.log(204, response)
     return buildResult(204, response)
   } catch (err) {
+    console.log(400, err)
     return buildResult(400, err)
   }
 }
