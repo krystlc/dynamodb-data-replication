@@ -9,7 +9,7 @@ Description: >
 Globals:
   Function:
     Runtime: nodejs12.x
-    Timeout: 60
+    Timeout: 180
     Environment:
       Variables:
         AWS_REGION: us-east-1

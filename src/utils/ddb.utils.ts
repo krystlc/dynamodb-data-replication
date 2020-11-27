@@ -14,11 +14,11 @@ const ddb = new AWS.DynamoDB({
 
 if(process.env.AWS_SAM_LOCAL) {
   ddb.endpoint = new Endpoint('http://dynamodb:8000')
-  console.log('aws sam is local', ddb.config)
+  console.log('aws sam is local', ddb.config.endpoint)
 }
 
 function formatDataForDynamo(rawData: MLSDataValueInterface) {
-  return AWS.DynamoDB.Converter.input(rawData)
+  return AWS.DynamoDB.Converter.marshall(rawData)
 }
 
 function insertData(DynamoData: MLSDataValueInterface[]): Promise<any> {
@@ -27,13 +27,14 @@ function insertData(DynamoData: MLSDataValueInterface[]): Promise<any> {
     let params: any = []
     let promises: Promise<any>[] = []
     DynamoData.forEach(async (row, index) => {
+      const { id, ...property } = row
       params.push({
         PutRequest: {
           Item: formatDataForDynamo({
             // [(TABLE_UNIQUE_KEY_FIELD as string)]: row['@odata.id'].toString(),  // use your own key value or remove it if api result have the key attribute already.
-            [(TABLE_UNIQUE_KEY_FIELD as string)]: row['id']?.toString(),  // use your own key value or remove it if api result have the key attribute already.
-            ...row,
-          }).M
+            [(TABLE_UNIQUE_KEY_FIELD as string)]: String(id),  // use your own key value or remove it if api result have the key attribute already.
+            ...property,
+          })
         }
       })
       if (params.length == 25 || index === DynamoData.length - 1) {
@@ -52,7 +53,7 @@ function insertData(DynamoData: MLSDataValueInterface[]): Promise<any> {
               }
             }
           }
-          console.log('init payload!')
+          console.log('processing batch', params)
           ddb.batchWriteItem({ RequestItems: { [(TABLE_NAME as any)]: params } }, processItemsCallback)
         }))
 
