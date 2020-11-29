@@ -45,9 +45,9 @@ export const lambdaHandler = async (event: APIGatewayProxyEvent, context: Contex
       //   handleResponseData(value, scope),
       //   invokeAnotherVersion(nextLink, scope, context.invokedFunctionArn)
       // ])
-      const nextLink = data.
       const process = await Promise.all([
-        handleResponseData(data.data, scope)
+        handleResponseData(data?.data, scope),
+        invokeAnotherVersion(data?.links?.next, scope, context.invokedFunctionArn)
       ])
       console.log(200, process)
       return buildResult(200, process)
@@ -111,8 +111,9 @@ const handleResponseData = async (properties: MLSDataValueInterface[], scope: Sc
   return null
 }
 
-const invokeAnotherVersion = async (url: string | undefined, scope: Scope, FunctionName: string): Promise<any> => {
-  if (url) {
+const invokeAnotherVersion = async (url: string, scope: Scope, FunctionName: string): Promise<any> => {
+  if (url && url !== 'https://kitsu.io/api/edge/anime?page%5Blimit%5D=20&page%5Boffset%5D=40') {
+    console.log('about to call!', {url, scope, FunctionName})
     const lambda = new AWS.Lambda()
     const params: AWS.Lambda.InvocationRequest = {
       FunctionName,
@@ -120,9 +121,10 @@ const invokeAnotherVersion = async (url: string | undefined, scope: Scope, Funct
       Payload: JSON.stringify({ url, scope }),
       Qualifier: "1"
     }
+    console.log('params', JSON.stringify(params, null, 2))
     const response = await lambda.invoke(params, function (err, data) {
       if (err) console.error(err, err.stack) // an error occurred
-      else console.log(data)           // successful response
+      else console.log('success making new lambda requesting', data)           // successful response
     }).promise()
     return response
   }

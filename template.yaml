@@ -12,12 +12,11 @@ Globals:
     Timeout: 180
     Environment:
       Variables:
-        AWS_REGION: us-east-1
         TABLE_NAME: beer-test   # Your table name here
         TABLE_REGION: us-east-1 # Your table region here
         TABLE_UNIQUE_KEY_FIELD: id
         BASE_URL: https://kitsu.io/api/edge # replace with https://api.mlsgrid.com
-        MLS_GRID_ACCESS_TOKEN: # how should i define this value securely?
+        MLS_GRID_ACCESS_TOKEN: 123 # how should i define this value securely?
 
 Resources:
   DataReplicationFunction:
@@ -37,7 +36,7 @@ Outputs:
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   DataReplicationApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Description: "API Gateway endpoint URL for Prod stage for Data Replication function"
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
   DataReplicationFunction:
     Description: "Hello World Lambda Function ARN"
