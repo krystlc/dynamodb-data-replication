@@ -1,14 +1,13 @@
 import AWS from 'aws-sdk'
+import fetch, { Headers, RequestInit, Response } from 'node-fetch'
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda"
 import { Scope, County } from './types/Enums'
 import { MLSDataResponseInterface, MLSDataValueInterface } from './types/MLSData'
-import { AxiosRequestConfig, AxiosResponse } from "axios"
 
-import $axios from './utils/axios.utils'
 import ddb from './utils/ddb.utils'
 import { BatchWriteItemInput } from 'aws-sdk/clients/dynamodb'
 
-const { TABLE_NAME, TABLE_UNIQUE_KEY_FIELD } = process.env
+const { TABLE_NAME, TABLE_UNIQUE_KEY_FIELD, BASE_URL, MLS_GRID_ACCESS_TOKEN } = process.env
 
 // const COUNTIES = [
 //   County.Hillsborough,
@@ -34,17 +33,21 @@ export const lambdaHandler = async (event: APIGatewayProxyEvent, context: Contex
     : Scope.Upsert
   console.log('process scope', Scope[scope])
   try {
-    const { url, options } = buildUrl(event, scope)
-    const response: AxiosResponse<MLSDataResponseInterface> = await $axios.get(url, options)
-    if (response?.data) {
+    const url = buildUrl(event, scope)
+    const options = buildOptions()
+    const response: Response = await fetch(url, options)
+    const data = await response.json()
+    console.log('fetch response', data)
+    if (data) {
       // const value = response.data?.value
       // const nextLink = response.data?.["@odata.nextLink"]
       // const process = await Promise.all([
       //   handleResponseData(value, scope),
       //   invokeAnotherVersion(nextLink, scope, context.invokedFunctionArn)
       // ])
+      const nextLink = data.
       const process = await Promise.all([
-        handleResponseData(((response.data as any).data), scope)
+        handleResponseData(data.data, scope)
       ])
       console.log(200, process)
       return buildResult(200, process)
@@ -62,12 +65,13 @@ const buildResult = (statusCode: number, body: any): APIGatewayProxyResult => ({
   body: JSON.stringify(body)
 })
 
-const buildUrl = (event: APIGatewayProxyEvent, scope: Scope): { url: string, options?: any } => {
+const buildUrl = (event: APIGatewayProxyEvent, scope: Scope): string => {
   if (event?.queryStringParameters?.url) {
-    return {
-      url: event.queryStringParameters.url
-    }
+    return event.queryStringParameters.url
   }
+  const filter = buildFilterStr({
+    'page[limit]': 20,
+  })
   // const yesterday = new Date()
   // yesterday.setDate(yesterday.getDate() - 1)
   // const filter = scope === Scope.Upsert
@@ -76,14 +80,21 @@ const buildUrl = (event: APIGatewayProxyEvent, scope: Scope): { url: string, opt
   // const apiMethod = 'PropertyResi'
   // const options: AxiosRequestConfig = {}
   const apiMethod = 'anime'
-  const options: AxiosRequestConfig = {
-    params: {
-      'page[limit]': 20
-    }
-  }
+  return `${BASE_URL}/${apiMethod}?${filter}`
+}
+
+const buildFilterStr = (params: {[key: string]: any}): string => {
+  return Object.entries(params)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&')
+}
+
+const buildOptions = (): RequestInit => {
+  const headers = new Headers()
+  headers.append('Authorization', `Beaer ${MLS_GRID_ACCESS_TOKEN}`)
   return {
-    url: apiMethod,
-    options,
+    method: 'GET',
+    headers,
   }
 }
 
@@ -128,13 +139,12 @@ function insertProperties(DynamoData: MLSDataValueInterface[]): Promise<any> {
     let params: any = []
     let promises: Promise<any>[] = []
     DynamoData.forEach(async (row, index) => {
-      const { id, ...property } = row
       params.push({
         PutRequest: {
           Item: formatDataForDynamo({
+            ...row,
             // [(TABLE_UNIQUE_KEY_FIELD as string)]: row['@odata.id'].toString(),  // use your own key value or remove it if api result have the key attribute already.
-            [(TABLE_UNIQUE_KEY_FIELD as string)]: String(id),  // use your own key value or remove it if api result have the key attribute already.
-            ...property,
+            [(TABLE_UNIQUE_KEY_FIELD as string)]: String(row.id),  // use your own key value or remove it if api result have the key attribute already.
           })
         }
       })
